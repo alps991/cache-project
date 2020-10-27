@@ -1,17 +1,12 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const LRUCache = require('./data-structures/LRUCache');
+const database = require('./firebase');
 
 const app = express();
 const jsonParser = bodyParser.json();
 const cacheSize = 3;
 const cache = new LRUCache(cacheSize);
-cache.set("a", 1);
-cache.set("b", 1);
-cache.set("c", 1);
-cache.set("d", 1);
-
-//Firebase connection
 
 app.get('/all', (req, res) => {
     const currentCache = cache.getAll();
@@ -21,10 +16,21 @@ app.get('/all', (req, res) => {
 app.get('/:key', (req, res) => {
     const key = req.params.key;
     const cachedValue = cache.get(key);
-    if (cachedValue) {
+    if (cachedValue !== null) {
         res.status(200).send(cachedValue.toString());
     } else {
-        res.send("Make call to database here");
+        database.ref('/' + key).once('value').then(dbRes => {
+            const value = dbRes.val();
+            if (value === null) {
+                res.status(404).send('Not found in database');
+            } else {
+                cache.set(key, value);
+                res.status(200).send(value.toString());
+            }
+        }).catch(err => {
+            console.log(err);
+            res.status(500).send();
+        });
     }
 });
 
